@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>图片生成示例</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 2rem;
+    }
+    textarea {
+      width: 100%;
+      height: 6rem;
+    }
+    #pic {
+      display: none; /* 隐藏旧的单图显示 */
+    }
+    #gallery {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 1rem;
+    }
+    .image-container {
+      position: relative;
+      border: 1px solid #ccc;
+    }
+    .image-container img {
+      display: block;
+      max-width: 300px;
+      height: auto;
+    }
+    .download-btn {
+      position: absolute;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.5);
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <textarea id="prompt" placeholder="输入提示词……"></textarea>
+  <br />
+  <button id="go">生成</button>
+  <div id="error" style="color: red; margin-top: 10px; display: none;"></div>
+  <img id="pic" alt="生成的图片将在此显示" />
+  <div id="gallery"></div>
+
+  <script>
+    document.getElementById('go').addEventListener('click', async () => {
+      const promptEl = document.getElementById('prompt');
+      const picEl = document.getElementById('pic');
+      const errorEl = document.getElementById('error');
+      const galleryEl = document.getElementById('gallery');
+      const prompt = promptEl.value.trim();
+      if (!prompt) return;
+
+      // 重置界面状态
+      errorEl.style.display = 'none';
+      errorEl.textContent = '';
+      picEl.src = '';
+      galleryEl.innerHTML = '';
+      document.getElementById('go').disabled = true;
+      document.getElementById('go').textContent = '生成中...';
+
+      try {
+        const resp = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: prompt }),
+        });
+        
+        // 处理非200响应
+        if (!resp.ok) {
+          const errorData = await resp.json();
+          throw new Error(errorData.error || '服务器错误');
+        }
+        
+        const data = await resp.json();
+        
+        // 处理多张图片
+        if (data.urls && Array.isArray(data.urls) && data.urls.length > 0) {
+          // 显示所有图片
+          data.urls.forEach((url, index) => {
+            const container = document.createElement('div');
+            container.className = 'image-container';
+            
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = `生成图片 ${index + 1}`;
+            
+            const downloadBtn = document.createElement('button');
+            downloadBtn.className = 'download-btn';
+            downloadBtn.textContent = '下载';
+            downloadBtn.onclick = () => {
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `图片${index + 1}.png`;
+              a.click();
+            };
+            
+            container.appendChild(img);
+            container.appendChild(downloadBtn);
+            galleryEl.appendChild(container);
+          });
+        } 
+        // 兼容旧版单图模式
+        else if (data.url) {
+          picEl.src = data.url;
+          picEl.style.display = 'block';
+        }
+      } catch (err) {
+        errorEl.textContent = `错误: ${err.message || '生成失败'}`;
+        errorEl.style.display = 'block';
+        console.error('图片生成错误:', err);
+      } finally {
+        document.getElementById('go').disabled = false;
+        document.getElementById('go').textContent = '生成';
+      }
+    });
+  </script>
+</body>
+</html> 
